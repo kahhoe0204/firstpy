@@ -54,15 +54,30 @@ pd.set_option('display.max_colwidth', None)  # Display full content in each cell
 
 
 
-def process_file(file_path = ""):
+def process_file(file_path = "",method = ""):
     # Ensure the file exists
+    success = "true"
     if not os.path.exists(file_path):
         return {"status": "error", "message": "File not found"}
-    
-    result = retreive_pdf(file_path)
-    return result
+    if method == "pdf":
+        try:
+            result = retrieve_pdf(file_path)
+        except :
+            success = "false"
+            result =  "Error in making time table"
+    else:
+        try:
+            result = retrieve_excel(file_path)
+        except Exception as error:
+            success = "false"
+            result = "Error in making time table"
+        
+    return {
+        "message": result,
+        "success": success
+    }
 
-def retreive_pdf(file_path):
+def retrieve_pdf(file_path):
 # if __name__ == "__main__":
 #     # Get the file path from the command-line arguments
 #     if len(sys.argv) < 2:
@@ -104,6 +119,81 @@ def retreive_pdf(file_path):
     time_schedule = {"1":monday_objects,"2":tuesday_objects,"3":wednesday_objects,"4":thursday_objects,"5":friday_objects}
     return time_schedule
 
+
+def retrieve_excel(file_path):
+
+    # calculate all sheet available
+    
+    # xl = pd.ExcelFile('file.xlsx')
+    # res = len(xl.sheet_names)
+    
+    
+    dataframe1 = pd.read_excel(file_path, index_col=0, header=None)
+    timetable = dataframe1.iloc[4:]
+
+    item_list = findExcelSub(timetable)
+    week = getWeek(dataframe1)
+    timeline = findTimeline(dataframe1)
+
+    for item in item_list:
+        if isinstance(item["timeStartRef"], int):
+            time_index = item["timeStartRef"]-1  # Adjusting for index (time list starts from 0)
+            item["timeStartRef"] = timeline[time_index]
+        
+    
+    return {"timetable":item_list, "week":week}
+
+    
+def getWeek(dataframe1):
+    header = dataframe1.index[0]
+    week = header.split(" ")
+    return week[1]
+
+def findExcelSub(dataframe1):
+    matched_subjects = []
+    column = 0
+    for col in dataframe1.columns:
+        column += 1
+        row = 0
+        # if pd.isna(monday[col].tolist()[0]):
+        for col1 in dataframe1[col]:
+            row +=1
+            if not pd.isna(col1):
+                clean_text = col1.replace('"','')
+                clean_text = clean_text.replace('\n',' ')
+
+                if row <= 2 and row > 0:
+                    day = 1
+                elif row <= 4 and row > 2:
+                    day = 2
+                elif row <= 6 and row > 4:
+                    day = 3
+                elif row <= 8 and row > 6:
+                    day = 4
+                else:
+                    day = 5
+
+                if re.match(r"\b[A-Z]{2,3}\s?\d{3,5}\b", str(clean_text)):
+                    if re.match(r"\bMPU\b", str(clean_text)):
+                        clean_text = clean_text.replace(" ","")
+
+                    group_text = clean_text.split(" ")
+                    if len(group_text) > 1:
+                        matched_subjects.append({"timeStartRef":column,"subjectRef": group_text[0],"hallRef": group_text[1], "dayRef":str(day), "durationRef":"1.5"})
+                    else:
+                        matched_subjects.append({"timeStartRef":column,"subjectRef": group_text[0], "hallRef":"", "dayRef":str(day), "durationRef":"1.5"})
+
+
+    return matched_subjects
+
+def findTimeline(dataframe1):
+    timeList = dataframe1.iloc[3]
+    time = []
+    for col in timeList:
+        fulltime_list = col.split(" ")[0]
+        formatted_time = fulltime_list[:2] + "." + fulltime_list[2:]
+        time.append(formatted_time)
+    return time
 
 
 def findSubject(df):
@@ -154,12 +244,22 @@ async def upload_file(file: UploadFile):
         file_location = save_directory +"/"+ file.filename
         # file_location = "uploaded_files/Semester 3 2025 Timetable v4.pdf"
         
-        result = process_file(file_location)
+    return process_file(file_location,"pdf")
+
+@app.post("/uploadexcel/")
+async def upload_file(file: UploadFile):
+
+    save_directory = "uploaded_files"
+    os.makedirs(save_directory, exist_ok=True)  # Create the directory if it doesn't exist
+
+    # Construct the full path to save the file
+    file_path = os.path.join(save_directory, file.filename)
+
+    # Save the file to the specified path
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+        file_location = save_directory +"/"+ file.filename
+        # file_location = "uploaded_files/Semester 3 2025 Timetable v4.pdf"
     
-    return {
-        "message": result,
-        "success": True
-    }
-
-
+    return process_file(file_location,"excel")
 
