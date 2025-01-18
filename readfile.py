@@ -59,6 +59,7 @@ def process_file(file_path = "",method = ""):
     success = True
     if not os.path.exists(file_path):
         return {"status": "error", "message": "File not found"}
+    
     if method == "pdf":
         try:
             result = retrieve_pdf(file_path)
