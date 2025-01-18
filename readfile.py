@@ -56,20 +56,20 @@ pd.set_option('display.max_colwidth', None)  # Display full content in each cell
 
 def process_file(file_path = "",method = ""):
     # Ensure the file exists
-    success = "true"
+    success = True
     if not os.path.exists(file_path):
         return {"status": "error", "message": "File not found"}
     if method == "pdf":
         try:
             result = retrieve_pdf(file_path)
         except :
-            success = "false"
+            success = False
             result =  "Error in making time table"
     else:
         try:
             result = retrieve_excel(file_path)
-        except Exception as error:
-            success = "false"
+        except :
+            success = False
             result = "Error in making time table"
         
     return {
